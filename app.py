@@ -129,7 +129,9 @@ def analyze_parts(bom_dfs: List[pd.DataFrame], parts: List[str], selected_source
                     'source': row.get('BOM_Source', 'Unknown')
                 }
     
+    # Create progress bar and status container
     progress_bar = st.progress(0)
+    status_container = st.empty()
     total_parts = len(parts)
     
     for i, part in enumerate(parts):
@@ -137,7 +139,8 @@ def analyze_parts(bom_dfs: List[pd.DataFrame], parts: List[str], selected_source
         if not part:
             continue
         
-        st.write(f"🔧 Processing: {part}")
+        # Update status without creating new UI elements
+        status_container.text(f"🔧 Processing: {part}")
         combined_tree = []
         seen_components = set()
         found_as_component = False
@@ -155,7 +158,6 @@ def analyze_parts(bom_dfs: List[pd.DataFrame], parts: List[str], selected_source
         
         if combined_tree:
             all_trees[part] = combined_tree
-            st.success(f"✅ Found BOM structure with {len(combined_tree)} components")
         else:
             # If not found as parent, check if it exists as a component
             if part in component_info:
@@ -165,11 +167,12 @@ def analyze_parts(bom_dfs: List[pd.DataFrame], parts: List[str], selected_source
                 all_trees[part] = [
                     [part, info['name'], info['description'], info['source']]
                 ]
-                st.warning(f"⚠️ Part found only as component - showing component information")
-            else:
-                st.error(f"❌ No BOM found for: {part}")
         
         progress_bar.progress((i + 1) / total_parts)
+    
+    # Clear the status container
+    status_container.empty()
+    progress_bar.empty()
     
     return all_trees
 
@@ -486,6 +489,13 @@ def main():
                 # Perform analysis
                 st.header("📊 Analysis Results")
                 
+                # Create containers for immediate display
+                download_container = st.empty()
+                summary_container = st.empty()
+                
+                # Show immediate feedback
+                st.info("🔄 Analyzing parts... This may take a moment.")
+                
                 bom_dfs_to_search = [individual_boms[source] for source in selected_sources]
                 all_trees = analyze_parts(bom_dfs_to_search, parts, selected_sources)
                 
@@ -493,21 +503,24 @@ def main():
                     # Generate Excel report
                     excel_data = create_excel_report(all_trees, combined_bom, parts, selected_sources)
                     
-                    # Download button at the top
-                    st.download_button(
-                        label="📥 Download Excel Report",
-                        data=excel_data,
-                        file_name=f"BOM_Analysis_Report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    # Show download button and summary immediately
+                    with download_container:
+                        st.download_button(
+                            label="📥 Download Excel Report",
+                            data=excel_data,
+                            file_name=f"BOM_Analysis_Report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
                     
-                    st.markdown("---")  # Add separator
-                    
-                    # Summary
-                    st.success("✅ Analysis complete!")
-                    st.metric("Parts with BOMs", len(all_trees))
-                    st.metric("Parts without BOMs", len(parts) - len(all_trees))
-                    st.metric("Sources searched", len(selected_sources))
+                    with summary_container:
+                        st.success("✅ Analysis complete!")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Parts with BOMs", len(all_trees))
+                        with col2:
+                            st.metric("Parts without BOMs", len(parts) - len(all_trees))
+                        with col3:
+                            st.metric("Sources searched", len(selected_sources))
                 else:
                     st.warning("❌ No valid BOM structures found for the provided parts.")
 

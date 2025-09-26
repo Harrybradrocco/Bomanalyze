@@ -434,13 +434,15 @@ def main():
                     # Generate Excel report
                     excel_data = create_excel_report(all_trees, combined_bom, parts, selected_sources)
                     
-                    # Download button
+                    # Download button at the top
                     st.download_button(
                         label="📥 Download Excel Report",
                         data=excel_data,
                         file_name=f"BOM_Analysis_Report_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
+                    
+                    st.markdown("---")  # Add separator
                     
                     # Summary
                     st.success("✅ Analysis complete!")

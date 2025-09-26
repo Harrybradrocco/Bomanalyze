@@ -285,30 +285,61 @@ def create_excel_report(trees_dict: Dict[str, List[List[str]]],
     output.seek(0)
     return output.getvalue()
 
+def load_predefined_boms() -> Dict[str, str]:
+    """Return a dictionary of predefined BOM options with their GitHub URLs"""
+    predefined_boms = {
+        "1. Canada/467": "https://github.com/Harrybradrocco/Bomanalyze/raw/master/Canada.xlsx",
+        "2. Spain/645": "https://github.com/Harrybradrocco/Bomanalyze/raw/master/Spain.xlsx", 
+        "3. Denmark/770": "https://github.com/Harrybradrocco/Bomanalyze/raw/master/Denmark.xlsx"
+    }
+    return predefined_boms
+
 def main():
     st.title("🌳 BOM Tree Generator")
     st.markdown("**SYSCAD TREE GENERATOR** - written by hbradroc@uwo.ca")
     st.markdown("---")
     
-    # Sidebar for file uploads
-    st.sidebar.header("📁 Upload BOM Files")
+    # Sidebar for BOM selection
+    st.sidebar.header("📁 Select BOM Files")
     
-    # File upload
-    uploaded_files = st.sidebar.file_uploader(
-        "Choose BOM files (Excel, CSV, or TXT)",
-        type=['xlsx', 'xls', 'csv', 'txt'],
-        accept_multiple_files=True,
-        help="Upload your BOM files here. Supported formats: Excel (.xlsx, .xls), CSV (.csv), Text (.txt)"
+    # Predefined BOM options
+    predefined_boms = load_predefined_boms()
+    
+    st.sidebar.subheader("Predefined BOM Files")
+    
+    # Show file status (always available from GitHub)
+    for option in predefined_boms.keys():
+        st.sidebar.success(f"✅ {option}")
+    
+    selected_predefined = st.sidebar.multiselect(
+        "Choose predefined BOM files:",
+        list(predefined_boms.keys()),
+        default=list(predefined_boms.keys()),
+        help="Select from the predefined BOM files"
     )
     
-    if not uploaded_files:
-        st.info("👆 Please upload BOM files using the sidebar to get started.")
+    st.sidebar.subheader("Custom BOM Files")
+    uploaded_files = st.sidebar.file_uploader(
+        "Upload additional BOM files (optional)",
+        type=['xlsx', 'xls', 'csv', 'txt'],
+        accept_multiple_files=True,
+        help="Upload your own BOM files. Supported formats: Excel (.xlsx, .xls), CSV (.csv), Text (.txt)"
+    )
+    
+    # Check if any BOM files are selected
+    if not selected_predefined and not uploaded_files:
+        st.info("👆 Please select predefined BOM files or upload custom files using the sidebar to get started.")
         st.markdown("""
         ### How to use this tool:
-        1. **Upload BOM Files**: Use the sidebar to upload your BOM files
-        2. **Enter Part Numbers**: Add part numbers you want to analyze
+        1. **Select BOM Files**: Choose from predefined files or upload your own
+        2. **Enter Part Numbers**: Add part numbers you want to analyze  
         3. **Select Sources**: Choose which BOM sources to search
         4. **Generate Report**: Download the Excel report with BOM trees
+        
+        ### Predefined BOM Files Available:
+        - Canada/467
+        - Spain/645  
+        - Denmark/770
         
         ### Supported file formats:
         - Excel files (.xlsx, .xls)
@@ -319,9 +350,37 @@ def main():
     
     # Load BOM files
     try:
-        file_data = [file.getvalue() for file in uploaded_files]
-        filenames = [file.name for file in uploaded_files]
-        combined_bom, individual_boms = load_bom_files(file_data, filenames)
+        all_file_data = []
+        all_filenames = []
+        
+        # Load predefined files from GitHub
+        for option in selected_predefined:
+            github_url = predefined_boms[option]
+            filename = github_url.split('/')[-1]  # Extract filename from URL
+            
+            try:
+                import requests
+                response = requests.get(github_url)
+                response.raise_for_status()
+                file_data = response.content
+                all_file_data.append(file_data)
+                all_filenames.append(filename)
+                st.sidebar.success(f"✅ Loaded: {filename}")
+            except Exception as e:
+                st.sidebar.error(f"❌ Failed to load: {filename}")
+                st.sidebar.error(f"Error: {str(e)}")
+        
+        # Load uploaded files
+        if uploaded_files:
+            for file in uploaded_files:
+                all_file_data.append(file.getvalue())
+                all_filenames.append(file.name)
+        
+        if not all_file_data:
+            st.error("❌ No BOM files could be loaded. Please check file availability.")
+            return
+            
+        combined_bom, individual_boms = load_bom_files(all_file_data, all_filenames)
         
         # Check required columns
         required_cols = ['Product no', 'Component no']
